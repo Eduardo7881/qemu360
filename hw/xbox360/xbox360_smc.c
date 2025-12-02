@@ -944,3 +944,50 @@ void xbox360_smc_set_reset_callback(Xbox360SMCState *s, void (*callback)(void *)
     s->reset_callback = callback;
     s->callback_opaque = opaque;
 }
+
+// big file yeah
+// oops, i forgot to implement QEMU DEVICE support
+
+/* ==================== QEMU DEVICE ==================== */
+static Property xbox360_smc_properties[] = {
+    DEFINE_PROP_PTR("nand-state", Xbox360SMCState, nand_state),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void xbox360_smc_class_init(ObjectClass *klass, void *data) {
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    
+    dc->realize = xbox360_smc_realize;
+    dc->desc = "Xbox 360 System Management Controller";
+    device_class_set_props(dc, xbox360_smc_properties);
+}
+
+static const TypeInfo xbox360_smc_type_info = {
+    .name = TYPE_XBOX360_SMC,
+    .parent = TYPE_SYS_BUS_DEVICE,
+    .instance_size = sizeof(Xbox360SMCState),
+    .class_init = xbox360_smc_class_init,
+};
+
+static void xbox360_smc_register_types(void) {
+    type_register_static(&xbox360_smc_type_info);
+}
+
+type_init(xbox360_smc_register_types);
+
+/* ==================== CREATE FUNCTION ==================== */
+Xbox360SMCState *xbox360_smc_create(MemoryRegion *parent, hwaddr base, XBOX360_NAND_STATE *nand_state) {
+    DeviceState *dev;
+    Xbox360SMCState *s;
+    
+    dev = qdev_new(TYPE_XBOX360_SMC);
+    s = XBOX360_SMC(dev);
+    
+    s->nand_state = nand_state;
+    
+    sysbus_realize_and_unref(SYS_BUS_DEVICE(dev), &error_fatal);
+    sysbus_mmio_map(SYS_BUS_DEVICE(dev), 0, base);
+    
+    printf("[SMC] Created at 0x%08" HWADDR_PRIx "\n", base);
+    return s;
+}
