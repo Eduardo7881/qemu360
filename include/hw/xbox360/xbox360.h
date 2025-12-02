@@ -4,6 +4,8 @@
 #include "hw/boards.h"
 #include "hw/ppc/ppc.h"
 #include "hw/xbox360/xbox360_smc.h"
+#include "hw/xbox360/xbox360_gpu.h"
+#include "hw/pci/pci.h"
 #Include "qom/object.h"
 
 #define TYPE_XBOX360_MACHINE MACHINE_TYPE_NAME("xbox360")
@@ -24,6 +26,10 @@ struct XenonState {
 
   /* SMC */
   Xbox360SMCState *smc;
+
+  /* GPU */
+  Xbox360GPUState *gpu;
+  PCIBus *pci_bus;
 
   uint8_t nand_data[0x400000]; // 4MB NAND dump
   uint8_t cpu_key[16];         // Console's CPU KEY.
