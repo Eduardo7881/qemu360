@@ -52,6 +52,24 @@ static uint64_t xenon_syscall(void *opaque, uint64_t addr, unsigned size)
   }
 }
 
+static void xenon_create_gpu(XenonState *s) {
+    printf("[XBOX360] Creating GPU...\n");
+    s->pci_bus = pci_new_bus(DEVICE(s), "pci", NULL, NULL, 0, TYPE_PCI_BUS);
+    
+    s->gpu = xbox360_gpu_create(s->pci_bus, get_system_memory(), NULL);
+    xbox360_gpu_set_interrupt_callback(s->gpu, xenon_gpu_interrupt_callback, s);
+    
+    printf("[XBOX360] GPU initialized\n");
+}
+
+static void xenon_gpu_interrupt_callback(void *opaque, uint32_t interrupts) {
+    XenonState *s = opaque;
+    printf("[XBOX360] GPU Interrupt: 0x%08X\n", interrupts);
+    
+    // TODO: Map GPU Interrupt to Interrupt Controller
+    // I'm only logging here... HELP
+}
+
 static void xenon_init_boot_rom(XenonState *s)
 {
   /* Creates a Minimal Boot ROM */
@@ -172,8 +190,9 @@ static void xenon_machine_init(MachineState *machine)
   xenon_init_cpus(s);
   xenon_init_memory(s);
   xenon_create_smc(s);
+  xenon_create_gpu(s);
   xenon_init_boot_rom(s);
-    
+
   qemu_register_reset(xenon_cpu_reset, s);
     
   printf("[XBOX360] Machine initialized successfully\n");
