@@ -1,0 +1,29 @@
+FROM ubuntu:22.04 AS builder
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y \
+    git build-essential ninja-build pkg-config \
+    libglib2.0-dev libpixman-1-dev libslirp-dev \
+    meson python3-pip flex bison \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY . /src
+RUN cd /src && \
+    mkdir build && cd build && \
+    meson setup .. \
+        -Dtarget-list=ppc-softmmu \
+        -Dstatic=true \
+        -Doptimization=3 && \
+    ninja
+
+FROM ubuntu:22.04
+
+COPY --from=builder /src/build/qemu-system-ppc /usr/local/bin/
+COPY --from=builder /src/build/pc-bios/ /usr/local/share/qemu/
+
+RUN echo '#!/bin/bash\nqemu-system-ppc -M xbox360 "$@"' > /usr/local/bin/xbox360-emu && \
+    chmod +x /usr/local/bin/xbox360-emu
+
+WORKDIR /data
+ENTRYPOINT ["xbox360-emu"]
