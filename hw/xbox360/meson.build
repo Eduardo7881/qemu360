@@ -5,6 +5,8 @@ xbox360_ss.add(when: 'CONFIG_XBOX360', if_true: files(
   'xbox360_nand.c',
   'xbox360_smc.c',
   'xbox360_gpu.c',
+  'crypto/xe_keys.c',
+  'crypto/xe_crypto.c'
 ))
 
-hw_ach += {'xbox360': xbox360_ss}
+hw_arch += {'xbox360': xbox360_ss}
