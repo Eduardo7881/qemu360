@@ -97,7 +97,6 @@ static void xenon_hardware_reset(void *opaque) {
     s->boot_state = BOOT_STATE_RESET;
 }
 
-// Handler de interrupções do GPU
 static void xenon_gpu_interrupt_handler(void *opaque, uint32_t interrupts) {
     XenonState *s = opaque;
     
@@ -131,7 +130,6 @@ static void xenon_gpu_interrupt_handler(void *opaque, uint32_t interrupts) {
     }
 }
 
-// Handler de controle de energia do SMC
 static void xenon_power_management_handler(void *opaque, POWER_STATE state) {
     XenonState *s = opaque;
     
@@ -188,6 +186,9 @@ static void xenon_machine_init(MachineState *machine) {
     printf("                    Microsoft Xbox 360                       \n");
     printf("                    Emulator v1.0.0                         \n");
     printf("\n");
+
+    s->gic = xenon_gic_create(get_system_memory(), 0x80001000);
+    printf("[GIC] Initialized at 0x80001000\n");
     
     for (int i = 0; i < 3; i++) {
         s->cpu[i] = POWERPC_CPU(cpu_create(machine->cpu_type));
@@ -202,6 +203,9 @@ static void xenon_machine_init(MachineState *machine) {
         
         printf("[CPU%d] PowerPC 750CL @ 3.2GHz inicializado\n", i);
     }
+
+    xenon_mmu_init_all(s);
+    xenon_connect_interrupts(s);
     
     memory_region_init_ram(&s->ram, OBJECT(s), "xbox360.ram", 
                           RAM_SIZE, &error_fatal);
