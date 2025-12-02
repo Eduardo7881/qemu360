@@ -54,6 +54,11 @@ static uint64_t xenon_syscall(void *opaque, uint64_t addr, unsigned size)
   }
 }
 
+static void xenon_init_kernel(XenonState *s) {
+    printf("[XBOX360] Initializing kernel emulation...\n");
+    xbox360_kernel_integration_init(s);
+}
+
 static void xenon_create_gpu(XenonState *s) {
     printf("[XBOX360] Creating GPU...\n");
     s->pci_bus = pci_new_bus(DEVICE(s), "pci", NULL, NULL, 0, TYPE_PCI_BUS);
@@ -193,6 +198,7 @@ static void xenon_machine_init(MachineState *machine)
   xenon_init_memory(s);
   xenon_create_smc(s);
   xenon_create_gpu(s);
+  xenon_init_kernel(s);
   xenon_init_boot_rom(s);
 
   qemu_register_reset(xenon_cpu_reset, s);
@@ -224,6 +230,12 @@ static const TypeInfo xenon_machine_type = {
 static void xenon_machine_register_types(void)
 {
   type_register_static(&xenon_machine_type);
+}
+
+static void xenon_machine_finalize(Object *obj) {
+    XenonState *s = XBOX360_MACHINE(obj);
+    
+    xbox360_kernel_integration_cleanup(s);
 }
 
 type_init(xenon_machine_register_types);
