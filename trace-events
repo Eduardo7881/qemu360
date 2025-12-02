@@ -81,3 +81,14 @@ xbox360_gpu_irq_deassert(void) "IRQ deasserted"
 xbox360_gpu_display_update(uint32_t width, uint32_t height) "display update %ux%u"
 xbox360_gpu_reset(void) "GPU reset"
 
+# Xbox 360 Kernel traces
+xbox360_syscall_entry(uint32_t num, uint32_t addr) "syscall %08X from 0x%08X"
+xbox360_syscall_exit(uint32_t num, uint32_t result) "syscall %08X returned 0x%08X"
+xbox360_kernel_debug(const char *msg) "kernel: %s"
+xbox360_thread_create(uint32_t tid, uint32_t addr) "thread %08X created at 0x%08X"
+xbox360_thread_terminate(uint32_t tid) "thread %08X terminated"
+xbox360_memory_alloc(uint32_t handle, uint32_t size, uint32_t addr) "memory alloc handle=%08X size=%u addr=0x%08X"
+xbox360_memory_free(uint32_t handle) "memory free handle=%08X"
+xbox360_file_open(const char *path, uint32_t handle) "file open '%s' -> handle %08X"
+xbox360_file_close(uint32_t handle) "file close handle=%08X"
+
