@@ -23,6 +23,17 @@ config SPAPR_RNG
     default y
     depends on PSERIES
 
+config XBOX360
+    bool
+    select PCI
+    select SERIAL
+    select USB_XHCI
+    select E1000E_PCI
+    imply XBOX360_NAND
+    default y
+    help   
+        Microsoft Xbox 360 game console (Trinity)
+
 config POWERNV
     bool
     default y
