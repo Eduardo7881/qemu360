@@ -5,6 +5,8 @@
 #include "hw/ppc/ppc.h"
 #include "hw/xbox360/xbox360_smc.h"
 #include "hw/xbox360/xbox360_gpu.h"
+#include "hw/xbox360/xbox360_mmu.h"
+#include "hw/xbox360/xbox360_gic.h"
 #include "hw/xbox360/xbox360_kernel.h"
 #include "hw/xbox360/xbox360_syscall.h"
 #include "hw/pci/pci.h"
@@ -21,7 +23,8 @@ struct XenonState {
 
   /*< public >*/
   PowerPCCPU *cpu[3]; // 3 Core Xenon
-  DeviceState *gic;   // Interrupt Controller
+  XenonGICState *gic;
+  XenonMMUState mmu_state[3]; // One per CPU
   MemoryRegion ram;   // 512MB RAM
   MemoryRegion mmio;  // Memory-mapped I/O
   MemoryRegion boot_rom; // 16MB boot ROM
