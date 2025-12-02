@@ -1,5 +1,6 @@
 #include "qemu/osdep.h"
 #include "hw/xbox360/xbox360.h"
+#include "hw/xbox360/xbox360_smc.h"
 #include "hw/loader.h"
 #include "hw/qdev-properties.h"
 #include "qapi/error.h"
