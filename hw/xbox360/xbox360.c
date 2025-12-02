@@ -92,6 +92,56 @@ static void xenon_init_cpus(XenonState *s)
   cpu_reset(CPU(s->cpu[0]));
 }
 
+static void xenon_create_smc(XenonState *s) {
+    printf("[XBOX360] Creating SMC...\n");
+    
+    s->smc = xbox360_smc_create(get_system_memory(), 
+                                SMC_BASE_ADDRESS,
+                                &s->nand_state);
+    
+    xbox360_smc_set_power_callback(s->smc, xenon_smc_power_callback, s);
+    xbox360_smc_set_reset_callback(s->smc, xenon_smc_reset_callback, s);
+    
+    xbox360_smc_set_boot_reason(s->smc, BOOT_REASON_RGH);
+    
+    printf("[XBOX360] SMC initialized at 0x%08X\n", SMC_BASE_ADDRESS);
+}
+
+static void xenon_smc_power_callback(void *opaque, POWER_STATE state) {
+    XenonState *s = opaque;
+    
+    printf("[XBOX360] SMC Power Callback: state=%d\n", state);
+    
+    switch (state) {
+        case POWER_STATE_OFF:
+            // Shutdown
+            // qemu_system_shutdown_request(SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
+            break;
+            
+        case POWER_STATE_REBOOT:
+            // Restart
+            qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_RESET);
+            break;
+            
+        default:
+            break;
+    }
+}
+
+static void xenon_smc_reset_callback(void *opaque) {
+    XenonState *s = opaque;
+    
+    printf("[XBOX360] SMC Reset Callback\n");
+    
+    for (int i = 0; i < 3; i++) {
+        if (s->cpu[i]) {
+            cpu_reset(CPU(s->cpu[i]));
+        }
+    }
+    
+    s->boot_stage = BOOT_STAGE_RESET;
+}
+
 static void xenon_init_memory(XenonState *s)
 {
   /* Main RAM: 512MB @ 0x00000000 */
@@ -119,6 +169,7 @@ static void xenon_machine_init(MachineState *machine)
     
   xenon_init_cpus(s);
   xenon_init_memory(s);
+  xenon_create_smc(s);
   xenon_init_boot_rom(s);
     
   qemu_register_reset(xenon_cpu_reset, s);
