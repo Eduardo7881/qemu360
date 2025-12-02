@@ -24,3 +24,5 @@
 
 # For PReP
 # CONFIG_PREP=n
+
+CONFIG_XBOX360=y
