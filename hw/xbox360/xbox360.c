@@ -189,6 +189,8 @@ static void xenon_machine_init(MachineState *machine) {
 
     s->gic = xenon_gic_create(get_system_memory(), 0x80001000);
     printf("[GIC] Initialized at 0x80001000\n");
+
+    xenon_pcie_integration_init(s);
     
     for (int i = 0; i < 3; i++) {
         s->cpu[i] = POWERPC_CPU(cpu_create(machine->cpu_type));
