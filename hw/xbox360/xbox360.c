@@ -1,13 +1,6 @@
 #include "qemu/osdep.h"
-#include "hw/xbox360/xbox360.h"
-#include "hw/xbox360/xbox360_smc.h"
-#include "hw/xbox360/xbox360_gpu.h"
-#include "hw/xbox360/xbox360_kernel.h"
-#include "hw/xbox360/xbox360_syscall.h"
-#include "hw/xbox360/xbox360_nand.h"
-#include "hw/xbox360/xbox360_boot.h"
-#include "hw/xbox360/xbox360_storage.h"
-#include "hw/xbox360/xbox360_usb.h"
+#include "qemu/help_option.h"
+#include "exec/memory.h"
 #include "hw/pci/pci.h"
 #include "hw/loader.h"
 #include "hw/qdev-properties.h"
@@ -17,8 +10,23 @@
 #include "cpu.h"
 #include "sysemu/reset.h"
 #include "sysemu/sysemu.h"
+#include "sysemu/runstate.h"
+#include "qapi/error.h"
+#include "qemu/option.h"
 #include "hw/ppc/ppc.h"
+#include "hw/boards.h"
 #include "hw/irq.h"
+
+#include "hw/xbox360/xbox360.h"
+#include "hw/xbox360/xbox360_smc.h"
+#include "hw/xbox360/xbox360_gpu.h"
+#include "hw/xbox360/xbox360_kernel.h"
+#include "hw/xbox360/xbox360_syscall.h"
+#include "hw/xbox360/xbox360_nand.h"
+#include "hw/xbox360/xbox360_boot.h"
+#include "hw/xbox360/xbox360_storage.h"
+#include "hw/xbox360/xbox360_usb.h"
+#include "hw/xbox360/xbox360_network.h"
 
 /* ==================== QEMU MACHINE OPTIONS ==================== */
 typedef struct XenonMachineOptions {
@@ -34,51 +42,66 @@ typedef struct XenonMachineOptions {
 } XenonMachineOptions;
 
 static QemuOptsList xenon_opts = {
-    .name = "xbox360",
+    .name = "xbox360-options",
     .head = QTAILQ_HEAD_INITIALIZER(xenon_opts.head),
     .desc = {
         {
-            .name = "hdd",
+            .name = "xbox360.hdd",
             .type = QEMU_OPT_STRING,
             .help = "Xbox 360 HDD image file (qcow2, raw, etc.)",
         },
         {
-            .name = "dvd",
+            .name = "xbox360.dvd",
             .type = QEMU_OPT_STRING,
             .help = "Xbox 360 DVD image file (ISO)",
         },
         {
-            .name = "nand",
+            .name = "xbox360.nand",
             .type = QEMU_OPT_STRING,
             .help = "Xbox 360 NAND dump file",
         },
         {
-            .name = "bootrom",
+            .name = "xbox360.bootrom",
             .type = QEMU_OPT_STRING,
             .help = "Xbox 360 boot ROM file",
         },
         {
-            .name = "usb",
+            .name = "xbox360.usb",
             .type = QEMU_OPT_BOOL,
             .help = "Enable USB controller",
         },
         {
-            .name = "net",
+            .name = "xbox360.region",
+            .type = QEMU_OPT_STRING,
+            .help = "Console region (ntsc-u, pal, ntsc-j)",
+        },
+        {
+            .name = "xbox360.avpack",
+            .type = QEMU_OPT_STRING,
+            .help = "AV pack type (hdmi, component, composite)",
+        },
+        {
+            .name = "xbox360.xex",
+            .type = QEMU_OPT_STRING,
+            .help = "XEX file to launch",
+        },
+        {
+            .name = "xbox360.net",
             .type = QEMU_OPT_BOOL,
             .help = "Enable network adapter",
         },
         {
-            .name = "kernel",
+            .name = "xbox360.kernel",
             .type = QEMU_OPT_STRING,
             .help = "Linux kernel to boot (for development)",
         },
         {
-            .name = "initrd",
+            .name = "xbox360.initrd",
             .type = QEMU_OPT_STRING,
             .help = "Initial ramdisk",
         },
         {
-            .name = "append",
+            .name = "xbox360.append",
             .type = QEMU_OPT_STRING,
             .help = "Kernel command line",
         },
@@ -275,10 +298,13 @@ static void xenon_machine_init(MachineState *machine) {
 
     xenon_pcie_integration_init(s);
     xenon_audio_timer_integration_init(s);
-    xenon_storage_init(s, opts.hdd_image, opts.dvd_image, &err);
-    if (err) {
-        error_report_err(err);
-        // continue but without storage
+
+    if (opts.enable_storage) {
+        xenon_storage_init(s, opts.hdd_image, opts.dvd_image, &err);
+        if (err) {
+           error_report_err(err);
+           // continue but without storage
+        }
     }
 
     if (opts.enable_usb) {
@@ -418,6 +444,29 @@ static const MemoryRegionOps xbox360_mmio_ops = {
 };
 
 // ==================== MACHINE ====================
+static const VMStateDescription vmstate_xenon = {
+    .name = "xbox360",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .fields = (VMStateField[]) {
+        VMSTATE_STRUCT_ARRAY(cpu, XenonState, 3, 0, vmstate_cpu, PowerPCCPU),
+
+        VMSTATE_MEMORY_REGION(ram, XenonState),
+        VMSTATE_MEMORY_REGION(boot_rom, XenonState),
+        VMSTATE_MEMORY_REGION(mmio, XenonState),
+
+        VMSTATE_BUFFER(nand_data, XenonState),
+        VMSTATE_BUFFER(cpu_key, XenonState),
+        VMSTATE_UINT32_ARRAY(fuse_bits, XenonState, 16),
+
+        VMSTATE_UINT64(hv_phys_addr, XenonState),
+        VMSTATE_UINT32(boot_state, XenonState),
+        VMSTATE_UINT32(smc_version, XenonState),
+
+        VMSTATE_END_OF_LIST()
+    }
+};
+
 static void xenon_machine_class_init(ObjectClass *oc, void *data) {
     MachineClass *mc = MACHINE_CLASS(oc);
     
@@ -430,6 +479,7 @@ static void xenon_machine_class_init(ObjectClass *oc, void *data) {
     mc->default_ram_id = "xbox360.ram";
     mc->default_cpu_type = POWERPC_CPU_TYPE_NAME("7400");
 
+    mc->vmsd = &vmstate_xenon;
     mc->opts = &xenon_opts;
 }
 
