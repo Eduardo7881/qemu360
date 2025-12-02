@@ -93,4 +93,10 @@ ppc_ss.add(when: 'CONFIG_PEGASOS', if_true: files('pegasos.c'))
 ppc_ss.add(when: 'CONFIG_VOF', if_true: files('vof.c'))
 ppc_ss.add(when: ['CONFIG_VOF', 'CONFIG_PSERIES'], if_true: files('spapr_vof.c'))
 
+if config_all_devices.has_key('CONFIG_XBOX360')
+  ppc_ss.add(when: 'CONFIG_XBOX360', if_true: files(
+    'xbox360.c',
+  ))
+endif
+
 hw_arch += {'ppc': ppc_ss}
