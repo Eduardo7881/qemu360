@@ -6,6 +6,8 @@
 #include "hw/xbox360/xbox360_syscall.h"
 #include "hw/xbox360/xbox360_nand.h"
 #include "hw/xbox360/xbox360_boot.h"
+#include "hw/xbox360/xbox360_storage.h"
+#include "hw/xbox360/xbox360_usb.h"
 #include "hw/pci/pci.h"
 #include "hw/loader.h"
 #include "hw/qdev-properties.h"
@@ -17,6 +19,72 @@
 #include "sysemu/sysemu.h"
 #include "hw/ppc/ppc.h"
 #include "hw/irq.h"
+
+/* ==================== QEMU MACHINE OPTIONS ==================== */
+typedef struct XenonMachineOptions {
+    char *hdd_image;
+    char *dvd_image;
+    char *nand_dump;
+    char *boot_rom;
+    bool enable_usb;
+    bool enable_network;
+    char *kernel;
+    char *initrd;
+    char *append;
+} XenonMachineOptions;
+
+static QemuOptsList xenon_opts = {
+    .name = "xbox360",
+    .head = QTAILQ_HEAD_INITIALIZER(xenon_opts.head),
+    .desc = {
+        {
+            .name = "hdd",
+            .type = QEMU_OPT_STRING,
+            .help = "Xbox 360 HDD image file (qcow2, raw, etc.)",
+        },
+        {
+            .name = "dvd",
+            .type = QEMU_OPT_STRING,
+            .help = "Xbox 360 DVD image file (ISO)",
+        },
+        {
+            .name = "nand",
+            .type = QEMU_OPT_STRING,
+            .help = "Xbox 360 NAND dump file",
+        },
+        {
+            .name = "bootrom",
+            .type = QEMU_OPT_STRING,
+            .help = "Xbox 360 boot ROM file",
+        },
+        {
+            .name = "usb",
+            .type = QEMU_OPT_BOOL,
+            .help = "Enable USB controller",
+        },
+        {
+            .name = "net",
+            .type = QEMU_OPT_BOOL,
+            .help = "Enable network adapter",
+        },
+        {
+            .name = "kernel",
+            .type = QEMU_OPT_STRING,
+            .help = "Linux kernel to boot (for development)",
+        },
+        {
+            .name = "initrd",
+            .type = QEMU_OPT_STRING,
+            .help = "Initial ramdisk",
+        },
+        {
+            .name = "append",
+            .type = QEMU_OPT_STRING,
+            .help = "Kernel command line",
+        },
+        { /* end of list */ }
+    },
+};
 
 // ==================== SYSTEM CONFIGURATION ====================
 #define XBOX360_SMC_BASE        0x80000200
@@ -182,6 +250,21 @@ static void xenon_machine_init(MachineState *machine) {
     XenonState *s = XBOX360_MACHINE(machine);
     Error *err = NULL;
 
+    XenonMachineOptions opts = {0};
+    QemuOpts *qopts = qemu_opts_find(qemu_find_opts("xbox360"), NULL);
+    
+    if (qopts) {
+        opts.hdd_image = g_strdup(qemu_opt_get(qopts, "hdd"));
+        opts.dvd_image = g_strdup(qemu_opt_get(qopts, "dvd"));
+        opts.nand_dump = g_strdup(qemu_opt_get(qopts, "nand"));
+        opts.boot_rom = g_strdup(qemu_opt_get(qopts, "bootrom"));
+        opts.enable_usb = qemu_opt_get_bool(qopts, "usb", true);
+        opts.enable_network = qemu_opt_get_bool(qopts, "net", true);
+        opts.kernel = g_strdup(qemu_opt_get(qopts, "kernel"));
+        opts.initrd = g_strdup(qemu_opt_get(qopts, "initrd"));
+        opts.append = g_strdup(qemu_opt_get(qopts, "append"));
+    }
+
     printf("%s", asciiart);
     printf("                    Microsoft Xbox 360                       \n");
     printf("                    Emulator v1.0.0                         \n");
@@ -192,6 +275,21 @@ static void xenon_machine_init(MachineState *machine) {
 
     xenon_pcie_integration_init(s);
     xenon_audio_timer_integration_init(s);
+    xenon_storage_init(s, opts.hdd_image, opts.dvd_image, &err);
+    if (err) {
+        error_report_err(err);
+        // continue but without storage
+    }
+
+    if (opts.enable_usb) {
+        s->usb = xenon_usb_create(get_system_memory());
+        printf("[USB]   Initialized at 0x80008000/0x80009000\n");
+
+        if (s->usb && s->gic) {
+            qemu_irq usb_irq = xenon_usb_get_irq(s->usb);
+            /* Connect to GIC IRQ 44 (USB) */
+        }
+    }
     
     for (int i = 0; i < 3; i++) {
         s->cpu[i] = POWERPC_CPU(cpu_create(machine->cpu_type));
@@ -209,6 +307,18 @@ static void xenon_machine_init(MachineState *machine) {
 
     xenon_mmu_init_all(s);
     xenon_connect_interrupts(s);
+
+    if (opts.nand_dump && *opts.nand_dump) {
+        if (xenon_nand_load_dump(&s->nand_state, opts.nand_dump)) {
+            printf("[NAND] Loaded dump: %s\n", opts.nand_dump);
+        } else {
+            printf("[NAND] WARNING: Failed to load dump, using virtual NAND\n");
+            create_virtual_nand(&s->nand_state);
+        }
+    } else {
+        printf("[NAND] Using virtual NAND\n");
+        create_virtual_nand(&s->nand_state);
+    }
     
     memory_region_init_ram(&s->ram, OBJECT(s), "xbox360.ram", 
                           RAM_SIZE, &error_fatal);
@@ -247,6 +357,14 @@ static void xenon_machine_init(MachineState *machine) {
     
     qemu_register_reset(xenon_hardware_reset, s);
     xenon_machine_boot(s);
+
+    g_free(opts.hdd_image);
+    g_free(opts.dvd_image);
+    g_free(opts.nand_dump);
+    g_free(opts.boot_rom);
+    g_free(opts.kernel);
+    g_free(opts.initrd);
+    g_free(opts.append);
 }
 
 // ==================== MMIO ====================
@@ -311,12 +429,36 @@ static void xenon_machine_class_init(ObjectClass *oc, void *data) {
     mc->default_ram_size = RAM_SIZE;
     mc->default_ram_id = "xbox360.ram";
     mc->default_cpu_type = POWERPC_CPU_TYPE_NAME("7400");
+
+    mc->opts = &xenon_opts;
+}
+
+static void xenon_machine_instance_finalize(Object *obj) {
+    XenonState *s = XBOX360_MACHINE(obj);
+    
+    /* Clean up storage */
+    xenon_storage_cleanup(s);
+    
+    /* Clean up kernel */
+    xbox360_kernel_integration_cleanup(s);
+}
+
+static void xenon_machine_instance_init(Object *obj) {
+    XenonState *s = XBOX360_MACHINE(obj);
+    
+    /* Initialize fields */
+    memset(s, 0, sizeof(*s));
+    
+    /* Set up instance finalize */
+    object_unref(OBJECT(s));
 }
 
 static const TypeInfo xenon_machine_type = {
     .name = TYPE_XBOX360_MACHINE,
     .parent = TYPE_MACHINE,
     .instance_size = sizeof(XenonState),
+    .instance_init = xenon_machine_instance_init,
+    .instance_finalize = xenon_machine_instance_finalize,
     .class_init = xenon_machine_class_init,
 };
 
