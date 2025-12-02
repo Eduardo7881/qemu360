@@ -7,6 +7,9 @@ xbox360_ss.add(files(
   'xbox360_dma.c',
   'xbox360_xma.c',
   'xbox360_timer.c',
+  'xbox360_sata.c',
+  'xbox360_usb.c',
+  'xbox360_storage.c',
   'xbox360_integration.c',
   'xbox360_boot.c',
   'xbox360_gpu.c',
@@ -15,5 +18,9 @@ xbox360_ss.add(files(
   'xbox360_smc.c',
   'xbox360_nand.c',
 ))
+
+xbox360_ss.add(audio)
+xbox360_ss.add(block)
+xbox360_ss.add(usb)
 
 hw_arch += {'xbox360': xbox360_ss}
