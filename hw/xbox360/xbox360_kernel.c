@@ -137,6 +137,736 @@ static uint32_t syscall_ke_delay_execution_thread(XBOX360_KERNEL_STATE *ks, uint
     return STATUS_SUCCESS;
 }
 
+static uint32_t syscall_ke_set_timer_ex(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t *timer_handle = (uint32_t*)params[0];
+    uint64_t due_time = *(uint64_t*)&params[1];
+    uint32_t period = params[3];
+    uint32_t routine = params[4];
+    uint32_t context = params[5];
+    
+    if (!timer_handle) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    *timer_handle = generate_handle();
+    
+    xbox360_kernel_debug_print(ks, "KeSetTimerEx: handle=%08X, due=%llu, period=%d", 
+                              *timer_handle, (unsigned long long)due_time, period);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_ke_wait_for_single_object(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t object_handle = params[0];
+    uint32_t wait_reason = params[1];
+    uint32_t processor_mode = params[2];
+    uint32_t alertable = params[3];
+    uint64_t *timeout = (uint64_t*)params[4];
+    
+    (void)object_handle;
+    (void)wait_reason;
+    (void)processor_mode;
+    (void)alertable;
+    (void)timeout;
+
+    // simplified
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_ke_initialize_event(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t *event_handle = (uint32_t*)params[0];
+    uint32_t event_type = params[1];
+    uint32_t initial_state = params[2];
+    
+    if (!event_handle) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    *event_handle = generate_handle();
+    
+    xbox360_kernel_debug_print(ks, "KeInitializeEvent: handle=%08X, type=%d, state=%d", 
+                              *event_handle, event_type, initial_state);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_ke_set_event(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t event_handle = params[0];
+    uint32_t increment = params[1];
+    uint32_t wait = params[2];
+    uint32_t *previous_state = (uint32_t*)params[3];
+    
+    (void)event_handle;
+    (void)increment;
+    (void)wait;
+    
+    if (previous_state) {
+        *previous_state = 0;
+    }
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_ke_clear_event(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t event_handle = params[0];
+    
+    (void)event_handle;
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_ke_initialize_semaphore(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t *semaphore_handle = (uint32_t*)params[0];
+    uint32_t initial_count = params[1];
+    uint32_t maximum_count = params[2];
+    
+    if (!semaphore_handle) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    *semaphore_handle = generate_handle();
+    
+    xbox360_kernel_debug_print(ks, "KeInitializeSemaphore: handle=%08X, init=%d, max=%d", 
+                              *semaphore_handle, initial_count, maximum_count);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_ke_release_semaphore(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t semaphore_handle = params[0];
+    uint32_t increment = params[1];
+    uint32_t adjustment = params[2];
+    uint32_t wait = params[3];
+    
+    (void)semaphore_handle;
+    (void)increment;
+    (void)adjustment;
+    (void)wait;
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_ke_initialize_mutex(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t *mutex_handle = (uint32_t*)params[0];
+    uint32_t initial_owner = params[1];
+    
+    if (!mutex_handle) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    *mutex_handle = generate_handle();
+    
+    xbox360_kernel_debug_print(ks, "KeInitializeMutex: handle=%08X, owner=%d", 
+                              *mutex_handle, initial_owner);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_ke_release_mutex(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t mutex_handle = params[0];
+    uint32_t wait = params[1];
+    
+    (void)mutex_handle;
+    (void)wait;
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_mm_allocate_contiguous_memory(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t size = params[0];
+    uint32_t protection = params[1];
+    uint32_t *handle_ptr = (uint32_t*)params[2];
+    
+    if (!handle_ptr || size == 0) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    uint32_t handle = xbox360_allocate_memory(ks, size, 0, MEMORY_TYPE_PHYSICAL);
+    if (handle == 0) {
+        return STATUS_NO_MEMORY;
+    }
+    
+    XALLOCATION_INFO *alloc = find_allocation(ks, handle);
+    if (alloc) {
+        alloc->protection = protection;
+        alloc->contiguous = true;
+    }
+    
+    *handle_ptr = handle;
+    
+    xbox360_kernel_debug_print(ks, "MmAllocateContiguousMemory: %d bytes, handle %08X", 
+                              size, handle);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_mm_free_contiguous_memory(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t handle = params[0];
+    
+    XALLOCATION_INFO *alloc = find_allocation(ks, handle);
+    if (!alloc) {
+        return STATUS_NOT_FOUND;
+    }
+    
+    if (!alloc->contiguous) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    return xbox360_free_memory(ks, handle);
+}
+
+static uint32_t syscall_mm_persist_contiguous_memory(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t handle = params[0];
+    uint32_t persist = params[1];
+    
+    XALLOCATION_INFO *alloc = find_allocation(ks, handle);
+    if (!alloc) {
+        return STATUS_NOT_FOUND;
+    }
+    
+    alloc->persisted = (persist != 0);
+    
+    xbox360_kernel_debug_print(ks, "MmPersistContiguousMemory: handle=%08X, persist=%d", 
+                              handle, persist);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_mm_query_statistics(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t *stats_ptr = (uint32_t*)params[0];
+    
+    if (!stats_ptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    uint32_t stats[16] = {0};
+    stats[0] = 512 * 1024 * 1024;  // Total physical memory
+    stats[1] = 256 * 1024 * 1024;  // Available physical memory
+    stats[2] = 128 * 1024 * 1024;  // Total virtual memory
+    stats[3] = 64 * 1024 * 1024;   // Available virtual memory
+    
+    memcpy((void*)stats_ptr, stats, sizeof(stats));
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_io_create_device(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t driver_object = params[0];
+    uint32_t device_extension_size = params[1];
+    const char *device_name = (const char*)params[2];
+    uint32_t device_type = params[3];
+    uint32_t device_flags = params[4];
+    uint32_t exclusive = params[5];
+    uint32_t *device_object_ptr = (uint32_t*)params[6];
+    
+    (void)driver_object;
+    (void)device_extension_size;
+    (void)device_type;
+    (void)device_flags;
+    (void)exclusive;
+    
+    if (!device_object_ptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    *device_object_ptr = generate_handle();
+    
+    xbox360_kernel_debug_print(ks, "IoCreateDevice: %s, handle=%08X", 
+                              device_name ? device_name : "NULL", *device_object_ptr);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_io_delete_device(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t device_object = params[0];
+    
+    xbox360_kernel_debug_print(ks, "IoDeleteDevice: %08X", device_object);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_io_create_symbolic_link(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    const char *symbolic_link_name = (const char*)params[0];
+    const char *device_name = (const char*)params[1];
+    
+    xbox360_kernel_debug_print(ks, "IoCreateSymbolicLink: %s -> %s", 
+                              symbolic_link_name, device_name);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_io_delete_symbolic_link(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    const char *symbolic_link_name = (const char*)params[0];
+    
+    xbox360_kernel_debug_print(ks, "IoDeleteSymbolicLink: %s", symbolic_link_name);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_io_connect_interrupt(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t *interrupt_handle = (uint32_t*)params[0];
+    uint32_t service_routine = params[1];
+    uint32_t service_context = params[2];
+    uint32_t vector = params[3];
+    uint32_t irql = params[4];
+    uint32_t processors = params[5];
+    uint32_t edge_triggered = params[6];
+    uint32_t sharing = params[7];
+    
+    if (!interrupt_handle) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    *interrupt_handle = generate_handle();
+    
+    xbox360_kernel_debug_print(ks, "IoConnectInterrupt: vector=%d, routine=%08X", 
+                              vector, service_routine);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_io_disconnect_interrupt(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t interrupt_handle = params[0];
+    
+    xbox360_kernel_debug_print(ks, "IoDisconnectInterrupt: %08X", interrupt_handle);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_ob_create_object(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t object_type = params[0];
+    uint32_t object_attributes = params[1];
+    uint32_t object_size = params[2];
+    uint32_t *object_handle_ptr = (uint32_t*)params[3];
+    
+    if (!object_handle_ptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    *object_handle_ptr = generate_handle();
+    
+    xbox360_kernel_debug_print(ks, "ObCreateObject: type=%d, size=%d, handle=%08X", 
+                              object_type, object_size, *object_handle_ptr);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_ob_insert_object(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t object_handle = params[0];
+    uint32_t access_state = params[1];
+    
+    (void)object_handle;
+    (void)access_state;
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_ob_close_handle(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t object_handle = params[0];
+    
+    xbox360_kernel_debug_print(ks, "ObCloseHandle: %08X", object_handle);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_rtl_init_unicode_string(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t destination_string = params[0];
+    const uint16_t *source_string = (const uint16_t*)params[1];
+    
+    if (!destination_string || !source_string) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    // simulated
+    uint32_t *dest = (uint32_t*)destination_string;
+    uint32_t length = 0;
+    while (source_string[length] != 0) {
+        length++;
+    }
+    
+    dest[0] = length * 2;          // Length in bytes
+    dest[1] = length * 2 + 4;      // Maximum length
+    dest[2] = params[1] + 8;       // Buffer pointer
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_rtl_ansi_to_unicode_string(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t destination_string = params[0];
+    uint32_t source_string = params[1];
+    uint32_t alloc_dest = params[2];
+    
+    (void)destination_string;
+    (void)source_string;
+    (void)alloc_dest;
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_rtl_free_unicode_string(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t unicode_string = params[0];
+    
+    (void)unicode_string;
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_rtl_compare_memory(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    const void *source1 = (const void*)params[0];
+    const void *source2 = (const void*)params[1];
+    uint32_t length = params[2];
+    
+    if (!source1 || !source2) {
+        return 0;
+    }
+    
+    uint32_t match_count = 0;
+    const uint8_t *s1 = (const uint8_t*)source1;
+    const uint8_t *s2 = (const uint8_t*)source2;
+    
+    for (uint32_t i = 0; i < length; i++) {
+        if (s1[i] == s2[i]) {
+            match_count++;
+        }
+    }
+    
+    return match_count;
+}
+
+static uint32_t syscall_rtl_fill_memory(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    void *destination = (void*)params[0];
+    uint32_t length = params[1];
+    uint8_t fill = (uint8_t)params[2];
+    
+    if (!destination) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    memset(destination, fill, length);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_rtl_zero_memory(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    void *destination = (void*)params[0];
+    uint32_t length = params[1];
+    
+    if (!destination) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    memset(destination, 0, length);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_rtl_copy_memory(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    void *destination = (void*)params[0];
+    const void *source = (const void*)params[1];
+    uint32_t length = params[2];
+    
+    if (!destination || !source) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    memcpy(destination, source, length);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_rtl_move_memory(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    void *destination = (void*)params[0];
+    const void *source = (const void*)params[1];
+    uint32_t length = params[2];
+    
+    if (!destination || !source) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    memmove(destination, source, length);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_rtl_image_xex_header_field(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t xex_header = params[0];
+    uint32_t field_id = params[1];
+    uint32_t *value_ptr = (uint32_t*)params[2];
+    
+    if (!value_ptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    // Simulated
+    switch (field_id) {
+        case 0x00010000: // XEX_HEADER_IMAGE_BASE
+            *value_ptr = 0x80000000;
+            break;
+        case 0x00010001: // XEX_HEADER_IMAGE_SIZE
+            *value_ptr = 0x02000000;
+            break;
+        case 0x00010002: // XEX_HEADER_ENTRY_POINT
+            *value_ptr = 0x80000000;
+            break;
+        case 0x00010003: // XEX_HEADER_TITLE_ID
+            *value_ptr = ks->current_title.title_id;
+            break;
+        case 0x00010004: // XEX_HEADER_MEDIA_TYPE
+            *value_ptr = 0; // HDD
+            break;
+        default:
+            return STATUS_NOT_FOUND;
+    }
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_xex_load_executable(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    const char *file_name = (const char*)params[0];
+    uint32_t *module_handle_ptr = (uint32_t*)params[1];
+    
+    if (!module_handle_ptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    *module_handle_ptr = generate_handle();
+    
+    xbox360_kernel_debug_print(ks, "XexLoadExecutable: %s, handle=%08X", 
+                              file_name, *module_handle_ptr);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_xex_unload_executable(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t module_handle = params[0];
+    
+    xbox360_kernel_debug_print(ks, "XexUnloadExecutable: %08X", module_handle);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_xex_get_procedure_address(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t module_handle = params[0];
+    uint32_t ordinal = params[1];
+    uint32_t *procedure_address_ptr = (uint32_t*)params[2];
+    
+    (void)module_handle;
+    
+    if (!procedure_address_ptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    // Endereço simulado
+    *procedure_address_ptr = 0x80000000 + (ordinal * 0x1000);
+    
+    xbox360_kernel_debug_print(ks, "XexGetProcedureAddress: handle=%08X, ordinal=%d -> %08X", 
+                              module_handle, ordinal, *procedure_address_ptr);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_xex_check_executable_privilege(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t privilege = params[0];
+    
+    bool has_privilege = true;
+    
+    xbox360_kernel_debug_print(ks, "XexCheckExecutablePrivilege: %08X -> %s", 
+                              privilege, has_privilege ? "YES" : "NO");
+    
+    return has_privilege ? STATUS_SUCCESS : STATUS_PRIVILEGE_NOT_HELD;
+}
+
+static uint32_t syscall_hal_get_current_av_pack(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t *av_pack_ptr = (uint32_t*)params[0];
+    
+    if (!av_pack_ptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    *av_pack_ptr = 0; // NTSC-U
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_hal_return_to_firmware(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t firmware_type = params[0];
+    
+    xbox360_kernel_debug_print(ks, "HalReturnToFirmware: type=%d", firmware_type);
+    
+    xbox360_kernel_reset(ks);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_hal_read_write_pci_space(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t bus = params[0];
+    uint32_t device = params[1];
+    uint32_t function = params[2];
+    uint32_t register_offset = params[3];
+    uint32_t *value_ptr = (uint32_t*)params[4];
+    uint32_t size = params[5];
+    uint32_t write = params[6];
+    
+    (void)bus;
+    (void)device;
+    (void)function;
+    (void)register_offset;
+    (void)size;
+    
+    if (!value_ptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    if (write) {
+        xbox360_kernel_debug_print(ks, "HalWritePCISpace: bus=%d, dev=%d, reg=%08X, val=%08X", 
+                                  bus, device, register_offset, *value_ptr);
+    } else {
+        *value_ptr = 0; // Simulated
+        xbox360_kernel_debug_print(ks, "HalReadPCISpace: bus=%d, dev=%d, reg=%08X -> %08X", 
+                                  bus, device, register_offset, *value_ptr);
+    }
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_hal_send_smc_message(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t *message_ptr = (uint32_t*)params[0];
+    
+    if (!message_ptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    uint32_t command = message_ptr[0];
+    uint32_t data = message_ptr[1];
+    
+    // Simulated
+    switch (command) {
+        case 0x01: // Get temperature
+            message_ptr[2] = 65; // 65°C
+            break;
+        case 0x02: // Get fan speed
+            message_ptr[2] = 40; // 40%
+            break;
+        case 0x03: // Get power state
+            message_ptr[2] = 1; // On
+            break;
+        default:
+            message_ptr[2] = 0;
+    }
+    
+    xbox360_kernel_debug_print(ks, "HalSendSMCMessage: cmd=%02X, data=%08X -> %08X", 
+                              command, data, message_ptr[2]);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_ke_enable_fpu_exceptions(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t enable = params[0];
+    
+    ks->fpu_exceptions_enabled = (enable != 0);
+    
+    xbox360_kernel_debug_print(ks, "KeEnableFpuExceptions: %s", 
+                              enable ? "ENABLED" : "DISABLED");
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_ke_save_floating_point_state(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t *fpu_state_ptr = (uint32_t*)params[0];
+    
+    if (!fpu_state_ptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    memset((void*)fpu_state_ptr, 0, 512); // 512 bytes
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_ke_restore_floating_point_state(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t *fpu_state_ptr = (uint32_t*)params[0];
+    
+    (void)fpu_state_ptr;
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_mm_dbg_read_check(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t address = params[0];
+    uint32_t size = params[1];
+    
+    (void)address;
+    (void)size;
+    
+    return ks->debug_enabled ? STATUS_SUCCESS : STATUS_ACCESS_VIOLATION;
+}
+
+static uint32_t syscall_mm_dbg_write_check(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t address = params[0];
+    uint32_t size = params[1];
+    
+    (void)address;
+    (void)size;
+    
+    return ks->debug_enabled ? STATUS_SUCCESS : STATUS_ACCESS_VIOLATION;
+}
+
+static uint32_t syscall_mm_dbg_copy_memory(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    void *destination = (void*)params[0];
+    const void *source = (const void*)params[1];
+    uint32_t size = params[2];
+    
+    if (!destination || !source) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    if (!ks->debug_enabled) {
+        return STATUS_ACCESS_DENIED;
+    }
+    
+    memcpy(destination, source, size);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_ob_open_object_by_name(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    const char *object_name = (const char*)params[0];
+    uint32_t object_type = params[1];
+    uint32_t desired_access = params[2];
+    uint32_t *object_handle_ptr = (uint32_t*)params[3];
+    
+    if (!object_handle_ptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    
+    *object_handle_ptr = generate_handle();
+    
+    xbox360_kernel_debug_print(ks, "ObOpenObjectByName: %s, type=%d, handle=%08X", 
+                              object_name, object_type, *object_handle_ptr);
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_ob_make_temporary_object(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t object_handle = params[0];
+    
+    (void)object_handle;
+    
+    return STATUS_SUCCESS;
+}
+
+static uint32_t syscall_io_start_packet(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
+    uint32_t device_object = params[0];
+    uint32_t irp = params[1];
+    uint32_t key = params[2];
+    
+    (void)device_object;
+    (void)irp;
+    (void)key;
+    
+    return STATUS_SUCCESS;
+}
+
 static uint32_t syscall_ke_set_timer(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
     uint32_t *timer_handle = (uint32_t*)params[0];
     uint64_t due_time = *(uint64_t*)&params[1];
@@ -534,16 +1264,14 @@ static uint32_t syscall_dbg_print(XBOX360_KERNEL_STATE *ks, uint32_t *params) {
 }
 
 /* ==================== SYSCALL DISPATCHER ==================== */
-static void initialize_syscall_handlers(void) {
-    // Zerar todos os handlers
-    memset(syscall_handlers, 0, sizeof(syscall_handlers));
-    
-    // System and timing (agora completos)
+static void initialize_syscall_handlers_complete(void) {
+    // System and timing
     syscall_handlers[SYSCALL_GET_TICK_COUNT] = syscall_get_tick_count;
     syscall_handlers[SYSCALL_QUERY_PERFORMANCE_COUNTER] = syscall_query_performance_counter;
     syscall_handlers[SYSCALL_QUERY_PERFORMANCE_FREQUENCY] = syscall_query_performance_frequency;
     syscall_handlers[SYSCALL_KE_DELAY_EXECUTION_THREAD] = syscall_ke_delay_execution_thread;
     syscall_handlers[SYSCALL_KE_SET_TIMER] = syscall_ke_set_timer;
+    syscall_handlers[SYSCALL_KE_SET_TIMER_EX] = syscall_ke_set_timer_ex;
     syscall_handlers[SYSCALL_KE_CANCEL_TIMER] = syscall_ke_cancel_timer;
     syscall_handlers[SYSCALL_KE_RESUME_THREAD] = syscall_ke_resume_thread;
     syscall_handlers[SYSCALL_KE_SUSPEND_THREAD] = syscall_ke_suspend_thread;
@@ -551,18 +1279,31 @@ static void initialize_syscall_handlers(void) {
     syscall_handlers[SYSCALL_KE_GET_CURRENT_PROCESSOR_NUMBER] = syscall_ke_get_current_processor_number;
     syscall_handlers[SYSCALL_KE_SET_PROCESSOR_AFFINITY] = syscall_ke_set_processor_affinity;
     syscall_handlers[SYSCALL_KE_QUERY_ACTIVE_PROCESSORS] = syscall_ke_query_active_processors;
+    syscall_handlers[SYSCALL_KE_WAIT_FOR_SINGLE_OBJECT] = syscall_ke_wait_for_single_object;
+    syscall_handlers[SYSCALL_KE_INITIALIZE_EVENT] = syscall_ke_initialize_event;
+    syscall_handlers[SYSCALL_KE_SET_EVENT] = syscall_ke_set_event;
+    syscall_handlers[SYSCALL_KE_CLEAR_EVENT] = syscall_ke_clear_event;
+    syscall_handlers[SYSCALL_KE_INITIALIZE_SEMAPHORE] = syscall_ke_initialize_semaphore;
+    syscall_handlers[SYSCALL_KE_RELEASE_SEMAPHORE] = syscall_ke_release_semaphore;
+    syscall_handlers[SYSCALL_KE_INITIALIZE_MUTEX] = syscall_ke_initialize_mutex;
+    syscall_handlers[SYSCALL_KE_RELEASE_MUTEX] = syscall_ke_release_mutex;
+    syscall_handlers[SYSCALL_EX_CREATE_THREAD] = syscall_ex_create_thread;
     
-    // Memory management (completos)
+    // Memory management
     syscall_handlers[SYSCALL_MM_ALLOCATE_PHYSICAL_MEMORY] = syscall_mm_allocate_physical_memory;
+    syscall_handlers[SYSCALL_MM_ALLOCATE_CONTIGUOUS_MEMORY] = syscall_mm_allocate_contiguous_memory;
     syscall_handlers[SYSCALL_MM_FREE_PHYSICAL_MEMORY] = syscall_mm_free_physical_memory;
+    syscall_handlers[SYSCALL_MM_FREE_CONTIGUOUS_MEMORY] = syscall_mm_free_contiguous_memory;
+    syscall_handlers[SYSCALL_MM_PERSIST_CONTIGUOUS_MEMORY] = syscall_mm_persist_contiguous_memory;
     syscall_handlers[SYSCALL_MM_MAP_IO_SPACE] = syscall_mm_map_io_space;
     syscall_handlers[SYSCALL_MM_UNMAP_IO_SPACE] = syscall_mm_unmap_io_space;
     syscall_handlers[SYSCALL_MM_QUERY_ALLOCATION_SIZE] = syscall_mm_query_allocation_size;
     syscall_handlers[SYSCALL_MM_LOCK_PAGES] = syscall_mm_lock_pages;
     syscall_handlers[SYSCALL_MM_UNLOCK_PAGES] = syscall_mm_unlock_pages;
     syscall_handlers[SYSCALL_MM_GET_PHYSICAL_ADDRESS] = syscall_mm_get_physical_address;
+    syscall_handlers[SYSCALL_MM_QUERY_STATISTICS] = syscall_mm_query_statistics;
     
-    // File system (completos)
+    // File system
     syscall_handlers[SYSCALL_NT_CREATE_FILE] = syscall_nt_create_file;
     syscall_handlers[SYSCALL_NT_OPEN_FILE] = syscall_nt_open_file;
     syscall_handlers[SYSCALL_NT_READ_FILE] = syscall_nt_read_file;
@@ -573,7 +1314,33 @@ static void initialize_syscall_handlers(void) {
     syscall_handlers[SYSCALL_NT_QUERY_VOLUME_INFO] = syscall_nt_query_volume_info;
     syscall_handlers[SYSCALL_NT_DEVICE_IO_CONTROL] = syscall_nt_device_io_control;
     
-    // Graphics (completos)
+    // I/O Management
+    syscall_handlers[SYSCALL_IO_CREATE_DEVICE] = syscall_io_create_device;
+    syscall_handlers[SYSCALL_IO_DELETE_DEVICE] = syscall_io_delete_device;
+    syscall_handlers[SYSCALL_IO_CREATE_SYMBOLIC_LINK] = syscall_io_create_symbolic_link;
+    syscall_handlers[SYSCALL_IO_DELETE_SYMBOLIC_LINK] = syscall_io_delete_symbolic_link;
+    syscall_handlers[SYSCALL_IO_CONNECT_INTERRUPT] = syscall_io_connect_interrupt;
+    syscall_handlers[SYSCALL_IO_DISCONNECT_INTERRUPT] = syscall_io_disconnect_interrupt;
+    syscall_handlers[SYSCALL_IO_START_PACKET] = syscall_io_start_packet;
+    
+    // Object Management
+    syscall_handlers[SYSCALL_OB_CREATE_OBJECT] = syscall_ob_create_object;
+    syscall_handlers[SYSCALL_OB_INSERT_OBJECT] = syscall_ob_insert_object;
+    syscall_handlers[SYSCALL_OB_MAKE_TEMPORARY_OBJECT] = syscall_ob_make_temporary_object;
+    syscall_handlers[SYSCALL_OB_OPEN_OBJECT_BY_NAME] = syscall_ob_open_object_by_name;
+    syscall_handlers[SYSCALL_OB_CLOSE_HANDLE] = syscall_ob_close_handle;
+    
+    // RTL (Runtime Library)
+    syscall_handlers[SYSCALL_RTL_INIT_UNICODE_STRING] = syscall_rtl_init_unicode_string;
+    syscall_handlers[SYSCALL_RTL_ANSI_TO_UNICODE_STRING] = syscall_rtl_ansi_to_unicode_string;
+    syscall_handlers[SYSCALL_RTL_FREE_UNICODE_STRING] = syscall_rtl_free_unicode_string;
+    syscall_handlers[SYSCALL_RTL_COMPARE_MEMORY] = syscall_rtl_compare_memory;
+    syscall_handlers[SYSCALL_RTL_FILL_MEMORY] = syscall_rtl_fill_memory;
+    syscall_handlers[SYSCALL_RTL_ZERO_MEMORY] = syscall_rtl_zero_memory;
+    syscall_handlers[SYSCALL_RTL_COPY_MEMORY] = syscall_rtl_copy_memory;
+    syscall_handlers[SYSCALL_RTL_MOVE_MEMORY] = syscall_rtl_move_memory;
+    
+    // Graphics
     syscall_handlers[SYSCALL_VGPUHD_CREATE_DEVICE] = syscall_vgpuhd_create_device;
     syscall_handlers[SYSCALL_VGPUHD_DESTROY_DEVICE] = syscall_vgpuhd_destroy_device;
     syscall_handlers[SYSCALL_VGPUHD_FLIP] = syscall_vgpuhd_flip;
@@ -581,13 +1348,13 @@ static void initialize_syscall_handlers(void) {
     syscall_handlers[SYSCALL_VGPUHD_SETSCANLINE] = syscall_vgpuhd_setscanline;
     syscall_handlers[SYSCALL_VGPUHD_WAITFORVSYNC] = syscall_vgpuhd_waitforvsync;
     
-    // Audio (completos)
+    // Audio
     syscall_handlers[SYSCALL_XAUDIO_CREATE] = syscall_xaudio_create;
     syscall_handlers[SYSCALL_XAUDIO_DESTROY] = syscall_xaudio_destroy;
     syscall_handlers[SYSCALL_XAUDIO_SUBMIT_BUFFER] = syscall_xaudio_submit_buffer;
     syscall_handlers[SYSCALL_XAUDIO_FLUSH_BUFFERS] = syscall_xaudio_flush_buffers;
     
-    // Crypto (completos)
+    // Crypto
     syscall_handlers[SYSCALL_XECRYPT_SHA_INIT] = syscall_xecrypt_sha_init;
     syscall_handlers[SYSCALL_XECRYPT_SHA_UPDATE] = syscall_xecrypt_sha_update;
     syscall_handlers[SYSCALL_XECRYPT_SHA_FINAL] = syscall_xecrypt_sha_final;
@@ -595,7 +1362,14 @@ static void initialize_syscall_handlers(void) {
     syscall_handlers[SYSCALL_XECRYPT_RSA_VERIFY] = syscall_xecrypt_rsa_verify;
     syscall_handlers[SYSCALL_XECRYPT_RC4] = syscall_xecrypt_rc4;
     
-    // XAM (completos)
+    // XEX Loader
+    syscall_handlers[SYSCALL_RTL_IMAGE_XEX_HEADER_FIELD] = syscall_rtl_image_xex_header_field;
+    syscall_handlers[SYSCALL_XEX_LOAD_EXECUTABLE] = syscall_xex_load_executable;
+    syscall_handlers[SYSCALL_XEX_UNLOAD_EXECUTABLE] = syscall_xex_unload_executable;
+    syscall_handlers[SYSCALL_XEX_GET_PROCEDURE_ADDRESS] = syscall_xex_get_procedure_address;
+    syscall_handlers[SYSCALL_XEX_CHECK_EXECUTABLE_PRIVILEGE] = syscall_xex_check_executable_privilege;
+    
+    // XAM
     syscall_handlers[SYSCALL_XAM_GET_CONSOLETYPE] = syscall_xam_get_consoletype;
     syscall_handlers[SYSCALL_XAM_GET_SYSTEMINFO] = syscall_xam_get_systeminfo;
     syscall_handlers[SYSCALL_XAM_GET_CURRENTTITLEID] = syscall_xam_get_currenttitleid;
@@ -604,16 +1378,30 @@ static void initialize_syscall_handlers(void) {
     syscall_handlers[SYSCALL_XAM_TERMINATE_TITLE] = syscall_xam_terminate_title;
     syscall_handlers[SYSCALL_XAM_LOAD_GAME] = syscall_xam_load_game;
     
-    // Dashboard (completos)
+    // Hardware Abstraction Layer
+    syscall_handlers[SYSCALL_HAL_GET_CURRENT_AV_PACK] = syscall_hal_get_current_av_pack;
+    syscall_handlers[SYSCALL_HAL_RETURN_TO_FIRMWARE] = syscall_hal_return_to_firmware;
+    syscall_handlers[SYSCALL_HAL_READ_WRITE_PCI_SPACE] = syscall_hal_read_write_pci_space;
+    syscall_handlers[SYSCALL_HAL_SEND_SMC_MESSAGE] = syscall_hal_send_smc_message;
+    
+    // FPU Management
+    syscall_handlers[SYSCALL_KE_ENABLE_FPU_EXCEPTIONS] = syscall_ke_enable_fpu_exceptions;
+    syscall_handlers[SYSCALL_KE_SAVE_FLOATING_POINT_STATE] = syscall_ke_save_floating_point_state;
+    syscall_handlers[SYSCALL_KE_RESTORE_FLOATING_POINT_STATE] = syscall_ke_restore_floating_point_state;
+    
+    // Debug
+    syscall_handlers[SYSCALL_DBG_PRINT] = syscall_dbg_print;
+    syscall_handlers[SYSCALL_DBG_BREAK] = syscall_dbg_break;
+    syscall_handlers[SYSCALL_MM_DBG_READ_CHECK] = syscall_mm_dbg_read_check;
+    syscall_handlers[SYSCALL_MM_DBG_WRITE_CHECK] = syscall_mm_dbg_write_check;
+    syscall_handlers[SYSCALL_MM_DBG_COPY_MEMORY] = syscall_mm_dbg_copy_memory;
+    syscall_handlers[SYSCALL_TEST_FUNCTION] = syscall_test_function;
+    
+    // Dashboard
     syscall_handlers[SYSCALL_DASHBOARD_GET_VERSION] = syscall_dashboard_get_version;
     syscall_handlers[SYSCALL_DASHBOARD_SHOW_UI] = syscall_dashboard_show_ui;
     syscall_handlers[SYSCALL_DASHBOARD_HIDE_UI] = syscall_dashboard_hide_ui;
     syscall_handlers[SYSCALL_DASHBOARD_GET_STATE] = syscall_dashboard_get_state;
-    
-    // Debug (completos)
-    syscall_handlers[SYSCALL_DBG_PRINT] = syscall_dbg_print;
-    syscall_handlers[SYSCALL_DBG_BREAK] = syscall_dbg_break;
-    syscall_handlers[SYSCALL_TEST_FUNCTION] = syscall_test_function;
 }
 
 uint32_t xbox360_handle_syscall(XBOX360_KERNEL_STATE *ks, uint32_t syscall_number, uint32_t *parameters, uint32_t parameter_count) {
