@@ -626,6 +626,12 @@ void xbox360_kernel_init(XBOX360_KERNEL_STATE *ks, XenonState *xenon) {
     ks->next_thread_id = 0x2000;
     ks->next_file_handle = 0x4000;
     ks->next_allocation_handle = 0x8000;
+
+    ks->timer_callback = xenon_timer_get_callback(xenon->timer);
+    ks->timer_opaque = xenon;
+
+    ks->tick_period_ns = 1000000;
+    ks->last_tick_update = get_current_time_ns();
     
     // Create kernel process
     ks->current_process_id = ks->next_process_id++;
@@ -653,6 +659,34 @@ void xbox360_kernel_reset(XBOX360_KERNEL_STATE *ks) {
     
     XenonState *xenon = NULL;
     xbox360_kernel_init(ks, xenon);
+}
+
+void xbox360_update_timing(XBOX360_KERNEL_STATE *ks) {
+    uint64_t now = get_current_time_ns();
+    uint64_t elapsed = now - ks->last_tick_update;
+    
+    /* Update tick count based on elapsed time */
+    ks->tick_count += elapsed / ks->tick_period_ns;
+    ks->last_tick_update = now;
+    
+    /* Update performance counter */
+    ks->performance_counter = now;
+}
+
+uint64_t xbox360_get_system_time(XBOX360_KERNEL_STATE *ks) {
+    return ks->performance_counter;
+}
+
+uint64_t xbox360_get_timer_value(XBOX360_KERNEL_STATE *ks, int timer) {
+    if (!ks->xenon_state || !ks->xenon_state->timer) {
+        return 0;
+    }
+    
+    if (timer == 0) {
+        return xenon_timer_get_global_counter(ks->xenon_state->timer);
+    }
+    
+    return 0;
 }
 
 /* ==================== THREAD MANAGEMENT ==================== */
