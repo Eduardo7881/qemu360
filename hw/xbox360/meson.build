@@ -11,7 +11,7 @@ xbox360_ss.add(files(
   'xbox360_smc.c',
   'xbox360_nand.c',
   'crypto/xe_keys.c',
-  'crypto/xe_crypt.c'
+  'crypto/xe_crypto.c'
 ))
 
 hw_arch += {'xbox360': xbox360_ss}
