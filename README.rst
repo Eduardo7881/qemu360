@@ -1,4 +1,29 @@
 ===========
+QEMU360
+===========
+(also what the flip is .rst?)
+
+So i'm trying to make a minimal dashboard of the Xbox 360 run in QEMU.
+Based on **Xenia**, **QEMU**, **and some other emulators**.
+
+------
+
+What features will be implemented:
+
+| **- HDD support**
+| **- Board: Trinity**
+| **- CPU Key for Decryption**
+| **- GPU and CPU emulation**
+
+------
+
+!DISCLAIMER! I don't own **QEMU** nor **Xenia** and other Xbox 360 emulators, this **QEMU** fork is based of other emulators with code of them.
+
+Below will be the **QEMU** Read Me.
+
+------
+
+===========
 QEMU README
 ===========
 
