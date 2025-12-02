@@ -33,3 +33,7 @@ assignees: ''
 - CPU Key: [optional]
 
 ## Logs
+Paste relevant logs from the emulator here
+
+## Additional Context
+<!-- Screenshots, configuration files, etc... -->
