@@ -2,6 +2,8 @@
 #include "hw/xbox360/xbox360.h"
 #include "hw/xbox360/xbox360_smc.h"
 #include "hw/xbox360/xbox360_gpu.h"
+#include "hw/xbox360/xbox360_kernel.h"
+#include "hw/xbox360/xbox360_syscall.h"
 #include "hw/pci/pci.h"
 #include "hw/loader.h"
 #include "hw/qdev-properties.h"
