@@ -54,6 +54,7 @@ struct XenonState {
 
 void xenon_load_bootloader(XenonState *s);                                // Function to load the Bootloader from DUMP.
 void xenon_path_hypervisor(XenonState *s, uint8_t *hv_data, size_t size); // Function that patches the Hypervisor to run in a VM.
+void xenon_pcie_integration_init(XenonState *s);
 
 // Credits: Xenia
 void xenon_aes_decrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, size_t size);
