@@ -65,3 +65,19 @@ xbox360_smc_command(uint8_t cmd, uint32_t result) "command 0x%02X executed, resu
 xbox360_smc_unknown_command(uint8_t cmd) "unknown command 0x%02X"
 xbox360_smc_reset(void) "SMC reset triggered"
 
+# Xbox360 GPU Traces
+xbox360_gpu_mmio_read(uint64_t addr, unsigned size, uint64_t value) "MMIO read addr=0x%" PRIx64 " size=%u value=0x%" PRIx64
+xbox360_gpu_mmio_write(uint64_t addr, uint64_t value, unsigned size) "MMIO write addr=0x%" PRIx64 " value=0x%" PRIx64 " size=%u"
+xbox360_gpu_mmio_read_invalid(uint64_t addr) "invalid MMIO read addr=0x%" PRIx64
+xbox360_gpu_mmio_write_invalid(uint64_t addr, uint64_t value, unsigned size) "invalid MMIO write addr=0x%" PRIx64 " value=0x%" PRIx64 " size=%u"
+xbox360_gpu_vram_read(uint64_t addr, unsigned size, uint64_t value) "VRAM read addr=0x%" PRIx64 " size=%u value=0x%" PRIx64
+xbox360_gpu_vram_write(uint64_t addr, uint64_t value, unsigned size) "VRAM write addr=0x%" PRIx64 " value=0x%" PRIx64 " size=%u"
+xbox360_gpu_vram_read_invalid(uint64_t addr) "invalid VRAM read addr=0x%" PRIx64
+xbox360_gpu_vram_write_invalid(uint64_t addr, uint64_t value, unsigned size) "invalid VRAM write addr=0x%" PRIx64 " value=0x%" PRIx64 " size=%u"
+xbox360_gpu_command(uint32_t cmd) "command 0x%08X"
+xbox360_gpu_vblank(uint64_t frame) "vblank frame=%" PRIu64
+xbox360_gpu_irq_assert(uint32_t interrupts) "IRQ asserted 0x%08X"
+xbox360_gpu_irq_deassert(void) "IRQ deasserted"
+xbox360_gpu_display_update(uint32_t width, uint32_t height) "display update %ux%u"
+xbox360_gpu_reset(void) "GPU reset"
+
