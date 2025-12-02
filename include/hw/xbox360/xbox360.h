@@ -5,6 +5,8 @@
 #include "hw/ppc/ppc.h"
 #include "hw/xbox360/xbox360_smc.h"
 #include "hw/xbox360/xbox360_gpu.h"
+#include "hw/xbox360/xbox360_kernel.h"
+#include "hw/xbox360/xbox360_syscall.h"
 #include "hw/pci/pci.h"
 #Include "qom/object.h"
 
@@ -30,6 +32,9 @@ struct XenonState {
   /* GPU */
   Xbox360GPUState *gpu;
   PCIBus *pci_bus;
+
+  /* Kernel */
+  XBOX360_KERNEL_STATE *kernel_state;
 
   uint8_t nand_data[0x400000]; // 4MB NAND dump
   uint8_t cpu_key[16];         // Console's CPU KEY.
