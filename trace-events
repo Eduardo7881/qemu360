@@ -1,0 +1,94 @@
+# See docs/devel/tracing.rst for syntax documentation.
+#
+# This file is processed by the tracetool script during the build.
+#
+# To add a new trace event:
+#
+# 1. Choose a name for the trace event.  Declare its arguments and format
+#    string.
+#
+# 2. Call the trace event from code using trace_##name, e.g. multiwrite_cb() ->
+#    trace_multiwrite_cb().  The source file must #include "trace.h".
+#
+# Format of a trace event:
+#
+# [disable] <name>(<type1> <arg1>[, <type2> <arg2>] ...) "<format-string>"
+#
+# Example: g_malloc(size_t size) "size %zu"
+#
+# The "disable" keyword will build without the trace event.
+#
+# The <name> must be a valid as a C function name.
+#
+# Types should be standard C types.  Use void * for pointers because the trace
+# system may not have the necessary headers included.
+#
+# The <format-string> should be a sprintf()-compatible format string.
+
+# cpu.c
+breakpoint_insert(int cpu_index, uint64_t pc, int flags) "cpu=%d pc=0x%" PRIx64 " flags=0x%x"
+breakpoint_remove(int cpu_index, uint64_t pc, int flags) "cpu=%d pc=0x%" PRIx64 " flags=0x%x"
+breakpoint_singlestep(int cpu_index, int enabled) "cpu=%d enable=%d"
+cpu_exec_start(int cpu_index) "cpu=%d"
+cpu_exec_end(int cpu_index) "cpu=%d"
+
+# job.c
+job_state_transition(void *job,  int ret, const char *legal, const char *s0, const char *s1) "job %p (ret: %d) attempting %s transition (%s-->%s)"
+job_apply_verb(void *job, const char *state, const char *verb, const char *legal) "job %p in state %s; applying verb %s (%s)"
+job_completed(void *job, int ret) "job %p ret %d"
+
+# job-qmp.c
+qmp_job_cancel(void *job) "job %p"
+qmp_job_pause(void *job) "job %p"
+qmp_job_resume(void *job) "job %p"
+qmp_job_complete(void *job) "job %p"
+qmp_job_finalize(void *job) "job %p"
+qmp_job_dismiss(void *job) "job %p"
+
+# Xbox360 SMC Traces
+xbox360_smc_read(uint64_t addr, unsigned size, uint64_t value) "read addr=0x%" PRIx64 " size=%u value=0x%" PRIx64
+xbox360_smc_write(uint64_t addr, uint64_t value, unsigned size) "write addr=0x%" PRIx64 " value=0x%" PRIx64 " size=%u"
+xbox360_smc_read_invalid(uint64_t addr) "invalid read addr=0x%" PRIx64
+xbox360_smc_write_invalid(uint64_t addr, uint64_t value, unsigned size) "invalid write addr=0x%" PRIx64 " value=0x%" PRIx64 " size=%u"
+xbox360_smc_fan_speed(uint8_t speed) "fan speed set to %u%%"
+xbox360_smc_power_state(uint8_t old_state, uint8_t new_state) "power state changed %u -> %u"
+xbox360_smc_boot_reason(uint8_t reason) "boot reason: %u"
+xbox360_smc_error_set(uint32_t error, uint32_t total) "error set 0x%08X, total 0x%08X"
+xbox360_smc_error_clear(void) "errors cleared"
+xbox360_smc_temperature(int32_t cpu, int32_t gpu, uint8_t fan) "temperatures: CPU=%d.%d, GPU=%d.%d, fan=%u%%"
+xbox360_smc_voltages(int32_t v12, int32_t v5, int32_t v3v3) "voltages: 12V=%dmV, 5V=%dmV, 3.3V=%dmV"
+xbox360_smc_rtc_set(uint8_t hours, uint8_t minutes, uint8_t seconds) "RTC set to %02u:%02u:%02u"
+xbox360_smc_date_set(uint8_t day, uint8_t month, uint16_t year) "date set to %02u/%02u/%04u"
+xbox360_smc_post_code(uint32_t code) "POST code: 0x%08X"
+xbox360_smc_power_limit(uint32_t limit) "power limit set to %uW"
+xbox360_smc_command(uint8_t cmd, uint32_t result) "command 0x%02X executed, result=0x%08X"
+xbox360_smc_unknown_command(uint8_t cmd) "unknown command 0x%02X"
+xbox360_smc_reset(void) "SMC reset triggered"
+
+# Xbox360 GPU Traces
+xbox360_gpu_mmio_read(uint64_t addr, unsigned size, uint64_t value) "MMIO read addr=0x%" PRIx64 " size=%u value=0x%" PRIx64
+xbox360_gpu_mmio_write(uint64_t addr, uint64_t value, unsigned size) "MMIO write addr=0x%" PRIx64 " value=0x%" PRIx64 " size=%u"
+xbox360_gpu_mmio_read_invalid(uint64_t addr) "invalid MMIO read addr=0x%" PRIx64
+xbox360_gpu_mmio_write_invalid(uint64_t addr, uint64_t value, unsigned size) "invalid MMIO write addr=0x%" PRIx64 " value=0x%" PRIx64 " size=%u"
+xbox360_gpu_vram_read(uint64_t addr, unsigned size, uint64_t value) "VRAM read addr=0x%" PRIx64 " size=%u value=0x%" PRIx64
+xbox360_gpu_vram_write(uint64_t addr, uint64_t value, unsigned size) "VRAM write addr=0x%" PRIx64 " value=0x%" PRIx64 " size=%u"
+xbox360_gpu_vram_read_invalid(uint64_t addr) "invalid VRAM read addr=0x%" PRIx64
+xbox360_gpu_vram_write_invalid(uint64_t addr, uint64_t value, unsigned size) "invalid VRAM write addr=0x%" PRIx64 " value=0x%" PRIx64 " size=%u"
+xbox360_gpu_command(uint32_t cmd) "command 0x%08X"
+xbox360_gpu_vblank(uint64_t frame) "vblank frame=%" PRIu64
+xbox360_gpu_irq_assert(uint32_t interrupts) "IRQ asserted 0x%08X"
+xbox360_gpu_irq_deassert(void) "IRQ deasserted"
+xbox360_gpu_display_update(uint32_t width, uint32_t height) "display update %ux%u"
+xbox360_gpu_reset(void) "GPU reset"
+
+# Xbox 360 Kernel traces
+xbox360_syscall_entry(uint32_t num, uint32_t addr) "syscall %08X from 0x%08X"
+xbox360_syscall_exit(uint32_t num, uint32_t result) "syscall %08X returned 0x%08X"
+xbox360_kernel_debug(const char *msg) "kernel: %s"
+xbox360_thread_create(uint32_t tid, uint32_t addr) "thread %08X created at 0x%08X"
+xbox360_thread_terminate(uint32_t tid) "thread %08X terminated"
+xbox360_memory_alloc(uint32_t handle, uint32_t size, uint32_t addr) "memory alloc handle=%08X size=%u addr=0x%08X"
+xbox360_memory_free(uint32_t handle) "memory free handle=%08X"
+xbox360_file_open(const char *path, uint32_t handle) "file open '%s' -> handle %08X"
+xbox360_file_close(uint32_t handle) "file close handle=%08X"
+

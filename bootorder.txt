@@ -1,0 +1,4 @@
+that's a very good certified question.
+
+This is the loader order:
+1BL (First Bootloader) -> CB -> HV (Hypervisor) -> Dashboard (optional)

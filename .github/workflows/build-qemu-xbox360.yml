@@ -1,0 +1,253 @@
+name: Build QEMU with Xbox 360 Support
+
+on:
+  push:
+    branches: [ main, xbox360-dev ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: #allows manual trigger
+
+env:
+  QEMU_VERSION: "8.2.0"
+  BUILD_DIR: "${{ github.workspace }}/build"
+  INSTALL_DIR: "/usr/local"
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        target: [ppc-softmmu]
+        include:
+          - target: ppc-softmmu
+            name: xbox360-ppc
+            
+    name: "Build QEMU Xbox360 - ${{ matrix.target }}"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git \ 
+            build-essential \
+            ninja-build \
+            pkg-config \
+            libglib2.0-dev \
+            libpixman-1-dev \
+            libslirp-dev \
+            meson \
+            python3-pip \
+            python3-venv \
+            flex \
+            bison \
+            libaio-dev \
+            libcap-ng-dev \
+            liburing-dev \
+            libiscsi-dev \
+            libnfs-dev \
+            libssh-dev \
+            libvdeplug-dev \
+            libxml2-dev \
+            libbpf-dev \
+            librbd-dev \
+            libcurl4-gnutls-dev \
+            libgtk-3-dev \
+            libsdl2-dev \
+            libspice-server-dev \
+            libusb-1.0.0-dev \
+            libvte-2.91-dev \
+            libxen-dev \
+            libzstd-dev \
+            libpmem-dev \
+            libudev-dev \
+            libdrm-dev \
+            libepoxy-dev \
+            libgdm-dev \
+            libpulse-dev \
+            libjack-jackd2-dev \
+            libncurses-dev \
+            texinfo \
+            libseccomp-dev
+
+          pip3 install --user \
+            pycryptodome \
+            construct \
+            lz4 \
+            pillow
+
+      - name: Configure for Xbox360
+        run: |
+          mkdir -p ${{ env.BUILD_DIR }}
+          cd ${{ env.BUILD_DIR }}
+
+          meson setup .. \
+            --prefix=${{ env.INSTALL_DIR }} \
+            --libdir=${{ env.INSTALL_DIR }}/lib \
+            --bindir=${{ env.INSTALL_DIR }}/bin \
+            --datadir=${{ env.INSTALL_DIR }}/share \
+            --localstatedir=/var \
+            --sysconfdir=/etc \
+            --buildtype=debugoptimized \
+            --optimization=2 \
+            -Dstrip=false \
+            -Dstatic=false \
+            -Db_lto=true \
+            -Db_pie=true \
+            -Ddocs=false \
+            -Diconv=auto \
+            -Dlibudev=auto \
+            -Dopenssl=auto \
+            -Dselinux=auto \
+            -Dxen=auto \
+            -Dxen_pci_passthrough=auto \
+            -Dtcg=auto \
+            -Dcfi=false \
+            -Dsystem=false \
+            -Duser=false \
+            -Dguest_agent=false \
+            -Dguest_agent_msi=false \
+            -Dmodules=false \
+            -Ddebug=false \
+            -Ddebug-tcg=false \
+            -Dsanitizers=none \
+            -Dwerror=false \
+            -Dfuzzing=false \
+            -Dcapstone=auto \
+            -Dslirp=auto \
+            -Dqemu_suffix=qemu-xbox360 \
+            -Dtarget-list=${{ matrix.target }}
+
+          sed -i 's/CONFIG_XBOX360=n/CONFIG_XBOX360=y/g' config-host.mak >2/dev/null || true
+          echo "CONFIG_XBOX360=y" >> config-host.mak
+
+      - name: Build QEMU
+        run: |
+          cd ${{ env.BUILD_DIR }}
+          ninja -j$(nproc)
+
+          ls -la ${{ env.BUILD_DIR }}/qemu-system-*
+
+      - name: Run Basic Tests
+        timeout-minutes: 5
+        run: |
+          cd ${{ env.BUILD_DIR }}
+
+          if [ -f "qemu-system-ppc" ]; then
+            echo "QEMU binary built successfully"
+            ./qemu-system-ppc -M help | grep -i xbox || echo "Xbox 360 not found in machine list"
+            ./qemu-system-ppc --version
+
+            # run
+            timeout 10 ./qemu-system-ppc -M xbox360 -nographic -serial null &
+            QEMU_PID=$!
+            sleep 2
+
+            if ps -p $QEMU_PID > /dev/null; then
+              echo "QEMU Started"
+              kill $QEMU_PID 2>/dev/null || true
+            else
+              echo "QEMU Failed to Start"
+              exit 1
+            fi
+          else
+            echo "QEMU binary not built"
+            exit 1
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-xbox360-${{ matrix.target }}-${{ github.sha }}
+          path: |
+            ${{ env.BUILD_DIR }}/qemu-system-*
+            ${{ env.BUILD_DIR }}/meson-info/
+            ${{ env.BUILD_DIR }}/meson-logs/
+            ${{ github.workspace }}/xbox360_tools
+          retention-days: 7
+
+      - name: Create release package
+        if: github.event_name == 'push' && github.ref = 'refs/heads/main'
+        run: |
+          cd ${{ env.BUILD_DIR }}
+
+          tar -czf qemu-xbox360-ppc-${{ github.sha }}.tar.gz \
+            qemu-system-ppc \
+            ../hw/xbox360/* \
+            ../include/hw/xbox360/* \
+            ../target/ppc/xbox360/*
+
+          mb qemu-xbox360-ppc-${{ github.sha }}.tar.gz ${{ github.workspace }}/
+
+          tar -tzf ${{ github.workspace }}/qemu-xbox360-ppc-${{ github.sha }}.tar.gz | head -20
+
+      - name: Upload to Releases
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ github.workspace }}/qemu-xbox360-ppc-${{ github.sha }}.tar.gz
+          tag_name: nightly
+          name: "Nightly QEMU Xbox 360 Build"
+          body: |
+            # QEMU360
+
+            ## Build Info
+            - Commit: ${{ github.sha }}
+            - Date: ${{ github.event.head_commit.timestamp }}
+            - Target: ${{ matrix.target }}
+
+            ## Files included:
+            1. `qemu-system-ppc` - Qemu Binary
+            2. Xbox 360 device source files
+            3. Xbox 360 Minimal Tools
+
+            ## Quick start:
+            ```bash
+            # Run
+            ./qemu-system-ppc -M xbox360 -nographic
+
+            # With NAND dump
+            ./qemu-system-ppc -M xbox360 -bios nand_dump.bin -nographic
+            ```
+          draft: false
+          prerelease: true
+
+  code-analysis:
+    runs-on: ubuntu-22.04
+    name: "Code Analysis"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Static analysis (Cppcheck)
+        run: |
+          sudo apt-ge install -y cppcheck
+
+          if [ -d "hw/xbox360" ]; then
+            cppcheck --enable=warning,style,performance --suppress=missingIncludeSystem -I include hw/xbox360/ 2> cppcheck_results.txt
+            echo "==== CPPCHECK Results ===="
+            cat cppcheck_results.txt
+          fi
+
+      - name: Build Status Documentation
+        if: always()
+        run: |
+          echo "# Xbox 360 Emulation Documentation" > DOCUMENTATION.md
+          echo "" >> DOCUMENTATION.md
+          echo "## Build Status" >> DOCUMENTATION.md
+          echo "![Build Status](https://github.com/${{ github.repository }}/workflows/Build%20QEMU%20with%20Xbox%20360%20Support/badge.svg)" >> DOCUMENTATION.md
+          echo "" >> DOCUMENTATION.md
+          echo "## Files Structure" >> DOCUMENTATION.md
+          echo '```' >> DOCUMENTATION.md
+          find hw/xbox360 include/hw/xbox360 -type f -name "*.c" -o -name "*.h" | sort >> DOCUMENTATION.md
+          echo '```' >> DOCUMENTATION.md
+
+          cat DOCUMENTATION.md
